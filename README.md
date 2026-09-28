@@ -1,64 +1,119 @@
-# MOTION//SHIFT
+# RIFT//RUNNER
 
-> **ADMIT Hackathon 2026 · Motion case**  
-> Camera instead of a joystick: a browser reaction game controlled by body movement.
+**RIFT//RUNNER** is a browser motion arcade where the player's upper body becomes the controller.
 
-MOTION//SHIFT turns the webcam into a controller. The player survives a 45-second Reactor Run by responding to incoming movement prompts. Pose estimation runs directly in the browser; our own geometric rules convert 33 MediaPipe pose landmarks into gestures, confidence scores and corrective feedback.
+The player pilots a core through a 60-second neon rift. Incoming hazards require a physical response: shift left, shift right, duck, raise both hands for BOOST, or bring the hands together for SHIELD. The game sees the movement through an ordinary webcam, translates pose landmarks into custom gesture rules, animates the pilot, scores the reaction, and gives immediate corrective coaching when the movement is inaccurate.
+
+## Product flow
+
+The experience is intentionally more than a camera demo:
+
+1. **Home** — product introduction and game premise.
+2. **Auto Calibration** — learns the neutral shoulder position and body scale in about 2.4 seconds.
+3. **Motion Lab** — verifies all five gestures one by one before gameplay.
+4. **Hands-up Launch** — the run starts by holding BOOST, so the transition into the game is itself motion-controlled.
+5. **Rift Run** — a 60-second, three-sector survival sequence with score, combo, integrity, sound, large distance-readable cues and live corrective coaching.
+6. **Results** — score, accuracy, max combo and remaining integrity.
+7. **Leaderboard** — optional Flask-backed top scores.
 
 ## Gestures
 
-| Gesture | Recognition rule | Game action |
+| Gesture | Player movement | Game action |
 | --- | --- | --- |
-| **PULSE UP** | both wrists above the shoulders | jump |
-| **DUCK** | knee-angle squat threshold | duck |
-| **SHIFT LEFT** | torso shifts from calibrated center | dodge left |
-| **SHIFT RIGHT** | torso shifts from calibrated center | dodge right |
-| **SHIELD** | wrists meet close to the chest | activate shield |
+| **LEFT** | shift shoulders left from the calibrated center | dodge left |
+| **RIGHT** | shift shoulders right | dodge right |
+| **DUCK** | lower head and shoulders | pass below a pulse |
+| **BOOST** | raise both wrists above the shoulder line | boost through a gate |
+| **SHIELD** | bring both wrists together near the chest | absorb an energy impact |
 
-MediaPipe supplies pose landmarks only. Gesture classification, calibration, scoring and corrective coaching are implemented in this repository.
+Only the **upper body** is required. The player normally stands around 1–1.5 metres from a laptop rather than several metres away.
 
-## Error mode / Live Coach
+## Motion Coach
 
-The coach explains what is wrong rather than showing a generic recognition failure. Examples:
+RIFT//RUNNER does not stop at “gesture not recognized”. For the currently required action it inspects geometric pose metrics and explains the correction.
 
-- **PULSE UP:** “Правая кисть ещё ниже плеча. Подними правую руку выше.”
-- **DUCK:** “Согни колени сильнее: сейчас примерно 148°, цель — ниже 125°.”
-- **SHIFT LEFT:** “Смести корпус влево ещё примерно на 34% ширины плеч.”
-- **SHIELD:** “Сведи кисти ближе друг к другу перед грудью, чтобы замкнуть щит.”
+Examples:
 
-## Reliable local vision runtime
+- “Подними правую кисть выше линии плеч.”
+- “Присядь ниже: опусти голову и плечи ещё примерно на 24% ширины плеч.”
+- “Смести плечи влево ещё примерно на 31% их ширины.”
+- “Сведи кисти ближе друг к другу перед грудью.”
 
-The MediaPipe WASM runtime is served locally by Vite instead of being fetched from a CDN during gameplay.
+During the run these messages are deliberately large and the optional voice coach reads them aloud, so the player can react without standing next to the screen.
 
-Before `npm run dev` and `npm run build`, `scripts/prepare-vision-assets.mjs`:
+## Recognition architecture
 
-1. copies WASM assets from `node_modules/@mediapipe/tasks-vision/wasm` to `public/mediapipe/wasm`;
-2. downloads the official Pose Landmarker Lite model if it is not already present;
-3. reuses the local model on subsequent starts.
+MediaPipe Pose Landmarker provides landmarks. The gameplay gestures are classified by project-specific rules in `src/motion/gestureEngine.ts`.
 
-The generated large files are gitignored.
+The engine uses:
 
-## Local run
+- calibrated shoulder midpoint;
+- calibrated shoulder width as a scale-normalized unit;
+- wrist height relative to shoulders;
+- head + shoulder vertical displacement for DUCK;
+- lateral shoulder displacement for LEFT/RIGHT;
+- normalized wrist-to-wrist and wrist-to-chest distances for SHIELD;
+- landmark visibility as a confidence gate.
 
-Install dependencies:
+This makes the gesture layer independent of absolute pixel resolution and reasonably tolerant of different camera distances.
+
+## Tech stack
+
+### Client
+- React
+- TypeScript
+- Vite
+- Zustand
+- MediaPipe Tasks Vision
+- Framer Motion
+- Lucide
+- Web Audio API
+- Web Speech API
+- responsive glassmorphism / CSS perspective effects
+
+### Server
+- Flask
+- SQLite
+- Flask-CORS
+- Gunicorn
+
+Camera frames never go to Flask. Pose inference happens in the browser. The server only stores leaderboard fields.
+
+## Reliable local vision assets
+
+The MediaPipe WASM runtime is served locally instead of being fetched from a CDN while the game is running.
+
+Before both `npm run dev` and `npm run build`, the script `scripts/prepare-vision-assets.mjs`:
+
+1. copies MediaPipe WASM assets from `node_modules/@mediapipe/tasks-vision/wasm` into `public/mediapipe/wasm`;
+2. downloads the official Pose Landmarker Lite model if it is missing;
+3. reuses the local model on later starts.
+
+The generated model and WASM files are ignored by Git because they are reproducible build assets.
+
+## Local development
+
+Install frontend dependencies:
 
 ```bash
 npm install
 ```
 
-Run the frontend:
+Start the frontend:
 
 ```bash
 npm run dev
 ```
 
-Open the HTTPS URL printed by Vite, normally:
+Open the HTTPS URL shown by Vite, normally:
 
 ```text
 https://localhost:5173
 ```
 
-For the leaderboard backend, use a second terminal:
+The local certificate is self-signed, so the browser may ask you to continue once.
+
+Start the leaderboard API in a second terminal:
 
 ```bash
 cd backend
@@ -68,33 +123,74 @@ pip install -r requirements.txt
 python app.py
 ```
 
-## Troubleshooting
+The Flask API listens on:
 
-If the camera opens but the model does not:
+```text
+http://127.0.0.1:5050
+```
+
+Vite proxies `/api` requests to Flask.
+
+## Useful commands
+
+Prepare local MediaPipe assets manually:
 
 ```bash
 npm run vision:prepare
 ```
 
-Then verify:
-
-```text
-public/mediapipe/wasm/vision_wasm_internal.wasm
-public/models/pose_landmarker_lite.task
-```
-
-If calibration does not finish, move farther from the camera until shoulders, wrists, hips, knees and feet are visible.
-
-## Checks
+Run unit tests:
 
 ```bash
 npm run test
+```
+
+Production build:
+
+```bash
 npm run build
+```
+
+Check the backend:
+
+```bash
 python3 -m py_compile backend/app.py
 ```
 
-GitHub Actions runs the same checks on every push.
+## Project structure
 
-## Hackathon provenance
+```text
+src/
+├── components/
+│   ├── GameArena.tsx
+│   ├── GestureGuide.tsx
+│   ├── Landing.tsx
+│   ├── LaunchScene.tsx
+│   ├── LeaderboardPage.tsx
+│   ├── MotionLab.tsx
+│   ├── PoseCamera.tsx
+│   ├── ResultModal.tsx
+│   └── SetupScene.tsx
+├── motion/
+│   ├── audio.ts
+│   ├── gestureEngine.test.ts
+│   └── gestureEngine.ts
+├── api.ts
+├── App.tsx
+├── main.tsx
+├── store.ts
+├── styles.css
+└── types.ts
 
-The repository was empty when work on this submission started. The first project commit was created on **28 September 2026 after the official 07:00 UTC+5 hackathon start**. No pre-hackathon application code or assets were imported into this repository.
+backend/
+├── app.py
+├── Procfile
+└── requirements.txt
+```
+
+## Camera tips
+
+- Keep your face, shoulders and both hands visible.
+- Front lighting gives the most stable tracking.
+- A distance around 1–1.5 m usually works well on a laptop.
+- If Motion Lab cannot confirm a gesture, follow the on-screen coach rather than moving randomly.

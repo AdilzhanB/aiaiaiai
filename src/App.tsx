@@ -1,138 +1,104 @@
-import { AnimatePresence, motion } from 'framer-motion'
-import { Camera, Gauge, Play, RefreshCcw, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react'
+import {
+  Home,
+  Trophy,
+  Volume2,
+  VolumeX
+} from 'lucide-react'
+import { AnimatePresence } from 'framer-motion'
 import GameArena from './components/GameArena'
-import GestureGuide from './components/GestureGuide'
 import Landing from './components/Landing'
+import LeaderboardPage from './components/LeaderboardPage'
+import { CountdownScene, LaunchScene } from './components/LaunchScene'
+import MotionLab from './components/MotionLab'
 import PoseCamera from './components/PoseCamera'
 import ResultModal from './components/ResultModal'
+import SetupScene from './components/SetupScene'
 import { audio } from './motion/audio'
 import { useMotionStore } from './store'
 
-function SetupOverlay() {
+function ProductHeader() {
   const phase = useMotionStore((s) => s.phase)
-  const cameraReady = useMotionStore((s) => s.cameraReady)
-  const modelReady = useMotionStore((s) => s.modelReady)
-  const calibration = useMotionStore((s) => s.calibration)
+  const voiceEnabled = useMotionStore((s) => s.voiceEnabled)
+  const toggleVoice = useMotionStore((s) => s.toggleVoice)
   const setPhase = useMotionStore((s) => s.setPhase)
-  const resetGame = useMotionStore((s) => s.resetGame)
 
-  if (phase === 'playing' || phase === 'finished') return null
-
-  const calibrate = () => {
-    if (!cameraReady || !modelReady) return
-    setPhase('calibrating')
-  }
-
-  const start = () => {
-    resetGame()
-    audio.unlock()
-    setPhase('playing')
-  }
+  const quiet = phase === 'playing' || phase === 'countdown'
 
   return (
-    <AnimatePresence>
-      {(phase === 'camera' || phase === 'calibrating' || phase === 'ready') && (
-        <motion.div
-          className="setup-float glass"
-          initial={{ opacity: 0, y: 16, scale: .96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -10 }}
+    <header className={`experience-header ${quiet ? 'quiet' : ''}`}>
+      <button className="brand-lockup compact" onClick={() => setPhase('landing')}>
+        <span className="brand-glyph">R</span>
+        <span>
+          <strong>RIFT//RUNNER</strong>
+          <small>MOTION ARCADE</small>
+        </span>
+      </button>
+
+      <div className="experience-actions">
+        <button
+          className="icon-action"
+          onClick={() => {
+            toggleVoice()
+            if (voiceEnabled) audio.stopVoice()
+          }}
+          aria-label="Voice coach"
         >
-          {phase === 'camera' && (
-            <>
-              <div className="setup-icon"><Camera size={24} /></div>
-              <div className="setup-copy">
-                <span>ШАГ 1 / 2</span>
-                <strong>{cameraReady && modelReady ? 'Камера готова' : 'Запускаю vision engine…'}</strong>
-                <p>Встань на 1.5–2.5 м от камеры. В кадре должны быть видны плечи, кисти, колени и стопы.</p>
-              </div>
-              <button className="primary-btn compact" disabled={!cameraReady || !modelReady} onClick={calibrate}>
-                <Gauge size={17} /> Калибровать
-              </button>
-            </>
-          )}
+          {voiceEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+          <span>{voiceEnabled ? 'VOICE ON' : 'VOICE OFF'}</span>
+        </button>
 
-          {phase === 'calibrating' && (
-            <>
-              <div className="setup-icon scanning"><RefreshCcw size={24} /></div>
-              <div className="setup-copy">
-                <span>ШАГ 2 / 2</span>
-                <strong>Снимаю твой нейтральный профиль</strong>
-                <p>Стой прямо, руки вдоль тела. Это займёт около 2.4 секунды и адаптирует пороги под рост и дистанцию.</p>
-              </div>
-              <div className="loader-pill"><i /><i /><i /></div>
-            </>
-          )}
-
-          {phase === 'ready' && calibration.ready && (
-            <>
-              <div className="setup-icon ready"><ShieldCheck size={24} /></div>
-              <div className="setup-copy">
-                <span>СИСТЕМА ГОТОВА</span>
-                <strong>45 секунд · 5 типов движения</strong>
-                <p>Следи за импульсом в арене. Live Coach подскажет, как исправить неточное движение до столкновения.</p>
-              </div>
-              <button className="primary-btn compact" onClick={start}><Play size={17} /> Старт</button>
-            </>
-          )}
-        </motion.div>
-      )}
-    </AnimatePresence>
+        {!quiet && (
+          <>
+            <button className="icon-action" onClick={() => setPhase('leaderboard')}>
+              <Trophy size={18} /><span>RECORDS</span>
+            </button>
+            <button className="icon-action" onClick={() => setPhase('landing')}>
+              <Home size={18} /><span>HOME</span>
+            </button>
+          </>
+        )}
+      </div>
+    </header>
   )
 }
 
-function Dashboard() {
+function Experience() {
   const phase = useMotionStore((s) => s.phase)
-  const setPhase = useMotionStore((s) => s.setPhase)
-  const resetGame = useMotionStore((s) => s.resetGame)
-  const gesture = useMotionStore((s) => s.gesture)
-
-  const recalibrate = () => {
-    resetGame()
-    setPhase('calibrating')
-  }
-
-  const exitRun = () => {
-    resetGame()
-    setPhase('ready')
-  }
+  const miniCamera =
+    phase === 'ready' ||
+    phase === 'countdown' ||
+    phase === 'playing' ||
+    phase === 'finished'
 
   return (
-    <main className="app-shell">
-      <div className="ambient a1" /><div className="ambient a2" />
-      <header className="topbar">
-        <div className="brand"><span className="brand-mark">M</span><strong>MOTION//SHIFT</strong></div>
-        <div className="top-status">
-          <span className="secure"><span className="dot online" /> ON-DEVICE VISION</span>
-          <span className="gesture-chip"><Sparkles size={14} /> {gesture.toUpperCase()}</span>
-          {phase === 'playing' ? (
-            <button className="ghost-btn" onClick={exitRun}><RotateCcw size={15} /> Сброс</button>
-          ) : (
-            <button className="ghost-btn" onClick={recalibrate}><RefreshCcw size={15} /> Калибровка</button>
-          )}
-        </div>
-      </header>
+    <main className={`experience phase-${phase}`}>
+      <div className="noise" />
+      <div className="aurora aurora-one" />
+      <div className="aurora aurora-two" />
+      <ProductHeader />
 
-      <div className="dashboard">
-        <div className="left-stack">
-          <PoseCamera />
-          <GestureGuide />
+      <div className={`experience-layout ${miniCamera ? 'camera-floating' : ''}`}>
+        <PoseCamera variant={miniCamera ? 'mini' : 'setup'} />
+
+        <div className="experience-scene">
+          <AnimatePresence mode="wait">
+            {phase === 'calibrating' && <SetupScene key="calibrating" />}
+            {phase === 'training' && <MotionLab key="training" />}
+            {phase === 'ready' && <LaunchScene key="ready" />}
+            {phase === 'countdown' && <CountdownScene key="countdown" />}
+            {phase === 'playing' && <GameArena key="playing" />}
+            {phase === 'finished' && <ResultModal key="finished" />}
+          </AnimatePresence>
         </div>
-        <GameArena />
       </div>
-
-      <SetupOverlay />
-      {phase === 'finished' && <ResultModal />}
-
-      <footer className="app-footer">
-        <span>ADMIT HACKATHON 2026 · MOTION CASE</span>
-        <span>Pose inference stays in your browser · leaderboard stores score only</span>
-      </footer>
     </main>
   )
 }
 
 export default function App() {
   const phase = useMotionStore((s) => s.phase)
-  return phase === 'landing' ? <Landing /> : <Dashboard />
+
+  if (phase === 'landing') return <Landing />
+  if (phase === 'leaderboard') return <LeaderboardPage />
+  return <Experience />
 }

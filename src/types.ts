@@ -1,8 +1,18 @@
-export type Gesture = 'neutral' | 'jump' | 'duck' | 'left' | 'right' | 'shield'
+export type Gesture = 'neutral' | 'boost' | 'duck' | 'left' | 'right' | 'shield'
 
-export type GamePhase = 'landing' | 'camera' | 'calibrating' | 'ready' | 'playing' | 'finished'
+export type ActionGesture = Exclude<Gesture, 'neutral'>
 
-export type HazardKind = 'jump' | 'duck' | 'left' | 'right' | 'shield'
+export type GamePhase =
+  | 'landing'
+  | 'calibrating'
+  | 'training'
+  | 'ready'
+  | 'countdown'
+  | 'playing'
+  | 'finished'
+  | 'leaderboard'
+
+export type HazardKind = ActionGesture
 
 export interface Point {
   x: number
@@ -20,23 +30,24 @@ export interface Calibration {
   centerX: number
   shoulderWidth: number
   shoulderY: number
-  hipY: number
-  bodyHeight: number
+  headY: number
+  chestY: number
   ready: boolean
 }
 
 export interface MotionMetrics {
   centerX: number
   shoulderWidth: number
-  wristsAbove: number
+  shoulderY: number
+  headY: number
   leftWristAbove: boolean
   rightWristAbove: boolean
-  kneeAngleLeft: number
-  kneeAngleRight: number
-  squatDepth: number
+  boostHeight: number
+  crouchDepth: number
   wristDistance: number
   wristChestDistance: number
-  confidence: number
+  lateralShift: number
+  quality: number
 }
 
 export interface MotionDecision {
@@ -52,16 +63,6 @@ export interface Hazard {
   createdAt: number
   hitAt: number
   resolved: boolean
-}
-
-export interface GameStats {
-  score: number
-  combo: number
-  maxCombo: number
-  hits: number
-  misses: number
-  accuracy: number
-  duration: number
 }
 
 export interface LeaderboardEntry {

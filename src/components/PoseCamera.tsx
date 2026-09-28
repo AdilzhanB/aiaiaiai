@@ -9,12 +9,12 @@ const WASM_ROOT = '/mediapipe/wasm'
 const MODEL_URL = '/models/pose_landmarker_lite.task'
 
 const LINKS = [
-  [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
-  [11, 23], [12, 24], [23, 24], [23, 25], [25, 27],
-  [24, 26], [26, 28]
+  [0, 11], [0, 12],
+  [11, 12], [11, 13], [13, 15],
+  [12, 14], [14, 16]
 ]
 
-const LANDMARK_IDS = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]
+const LANDMARK_IDS = [0, 11, 12, 13, 14, 15, 16]
 
 function readableError(value: unknown) {
   if (value instanceof Error) return `${value.name}: ${value.message}`
@@ -46,31 +46,38 @@ function drawPose(canvas: HTMLCanvasElement, points: Point[], ok: boolean) {
   for (const [a, b] of LINKS) {
     const p = points[a]
     const q = points[b]
-    if (!p || !q || (p.visibility ?? 0) < .35 || (q.visibility ?? 0) < .35) continue
+    if (!p || !q || (p.visibility ?? 0) < 0.28 || (q.visibility ?? 0) < 0.28) continue
 
     ctx.beginPath()
     ctx.moveTo(p.x * w, p.y * h)
     ctx.lineTo(q.x * w, q.y * h)
-    ctx.strokeStyle = ok ? 'rgba(117,255,210,.94)' : 'rgba(255,203,92,.88)'
+    ctx.strokeStyle = ok ? 'rgba(115,255,218,.95)' : 'rgba(255,190,92,.9)'
     ctx.lineWidth = Math.max(2, w / 260)
+    ctx.shadowBlur = 10
+    ctx.shadowColor = ok ? '#73ffda' : '#ffbe5c'
     ctx.stroke()
+    ctx.shadowBlur = 0
   }
 
   for (const id of LANDMARK_IDS) {
     const p = points[id]
-    if (!p || (p.visibility ?? 0) < .35) continue
+    if (!p || (p.visibility ?? 0) < 0.28) continue
 
     ctx.beginPath()
-    ctx.arc(p.x * w, p.y * h, Math.max(3, w / 150), 0, Math.PI * 2)
-    ctx.fillStyle = ok ? '#75ffd2' : '#ffcb5c'
-    ctx.shadowBlur = 12
-    ctx.shadowColor = ok ? '#75ffd2' : '#ffcb5c'
+    ctx.arc(p.x * w, p.y * h, Math.max(3.2, w / 150), 0, Math.PI * 2)
+    ctx.fillStyle = ok ? '#d6fff2' : '#ffe0a3'
+    ctx.shadowBlur = 14
+    ctx.shadowColor = ok ? '#73ffda' : '#ffbe5c'
     ctx.fill()
     ctx.shadowBlur = 0
   }
 }
 
-export default function PoseCamera() {
+export default function PoseCamera({
+  variant = 'setup'
+}: {
+  variant?: 'setup' | 'mini'
+}) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const landmarkerRef = useRef<PoseLandmarker | null>(null)
@@ -107,6 +114,7 @@ export default function PoseCamera() {
       if (!window.isSecureContext) {
         throw new Error('Camera API requires HTTPS or localhost')
       }
+
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error('getUserMedia is not available in this browser')
       }
@@ -142,9 +150,9 @@ export default function PoseCamera() {
         baseOptions: { modelAssetPath: MODEL_URL },
         runningMode: 'VIDEO',
         numPoses: 1,
-        minPoseDetectionConfidence: .48,
-        minPosePresenceConfidence: .48,
-        minTrackingConfidence: .48
+        minPoseDetectionConfidence: 0.45,
+        minPosePresenceConfidence: 0.45,
+        minTrackingConfidence: 0.45
       })
 
       if (!alive) {
@@ -152,31 +160,35 @@ export default function PoseCamera() {
         return
       }
 
-      landmarkerRef.current?.close()
       landmarkerRef.current = landmarker
       setModelReady(true)
-      setVisionError('')
     }
 
     const processPose = (points: Point[]) => {
       const quality = frameQuality(points)
       const canvas = canvasRef.current
-      if (canvas) drawPose(canvas, points, quality > .55)
+      if (canvas) drawPose(canvas, points, quality > 0.5)
 
       const state = useMotionStore.getState()
 
       if (state.phase === 'calibrating') {
         if (!calibrationStart.current) calibrationStart.current = performance.now()
 
-        calibrationFrames.current.push({ points, timestamp: performance.now() })
-        if (calibrationFrames.current.length > 100) calibrationFrames.current.shift()
+        calibrationFrames.current.push({
+          points,
+          timestamp: performance.now()
+        })
+
+        if (calibrationFrames.current.length > 100) {
+          calibrationFrames.current.shift()
+        }
 
         if (performance.now() - calibrationStart.current >= 2400) {
           const next = calibrationFromFrames(calibrationFrames.current)
 
           if (next.ready) {
             setCalibration(next)
-            setPhase('ready')
+            setPhase('training')
             calibrationFrames.current = []
             calibrationStart.current = 0
           } else {
@@ -184,6 +196,7 @@ export default function PoseCamera() {
             calibrationStart.current = performance.now()
           }
         }
+
         return
       }
 
@@ -237,12 +250,13 @@ export default function PoseCamera() {
           fpsCounter.current.n += 1
           const now = performance.now()
           const elapsed = now - fpsCounter.current.t
+
           if (elapsed >= 1000) {
-            setFps(Math.round(fpsCounter.current.n * 1000 / elapsed))
+            setFps(Math.round((fpsCounter.current.n * 1000) / elapsed))
             fpsCounter.current = { n: 0, t: now }
           }
         } catch (error) {
-          console.error('[MOTION] inference error', error)
+          console.error('[RIFT] inference error', error)
         }
       }
 
@@ -257,15 +271,16 @@ export default function PoseCamera() {
       try {
         await startCamera()
       } catch (error) {
-        console.error('[MOTION] camera startup error', error)
+        console.error('[RIFT] camera startup error', error)
 
         let message = readableError(error)
+
         if (error instanceof DOMException && error.name === 'NotAllowedError') {
-          message = 'Доступ к камере запрещён. Разреши камеру для этого сайта и обнови страницу.'
+          message = 'Разреши доступ к камере для этого сайта и обнови страницу.'
         } else if (error instanceof DOMException && error.name === 'NotFoundError') {
           message = 'Камера не найдена на устройстве.'
         } else if (error instanceof DOMException && error.name === 'NotReadableError') {
-          message = 'Камера уже используется другим приложением. Закрой FaceTime/Zoom/OBS и попробуй снова.'
+          message = 'Камера уже занята другим приложением.'
         }
 
         setCamera(false, message)
@@ -276,7 +291,7 @@ export default function PoseCamera() {
         await startModel()
         loop()
       } catch (error) {
-        console.error('[MOTION] MediaPipe startup error', error)
+        console.error('[RIFT] MediaPipe startup error', error)
         setModelReady(false)
         setVisionError(readableError(error))
       }
@@ -294,71 +309,68 @@ export default function PoseCamera() {
   }, [setCalibration, setCamera, setModelReady, setMotion, setPhase])
 
   return (
-    <section className="camera-panel glass">
-      <div className="panel-head">
-        <div className="eyebrow"><Camera size={14} /> LIVE VISION</div>
-        <div className="status-row">
-          <span className={cameraReady ? 'dot online' : 'dot'} />
-          <span>{cameraReady ? 'camera' : 'waiting'}</span>
-          <span className={modelReady ? 'dot online' : 'dot'} />
-          <span>{modelReady ? `${fps} fps` : 'model'}</span>
+    <section className={`camera-panel glass-panel camera-${variant}`}>
+      <div className="camera-head">
+        <div>
+          <Camera size={15} />
+          <strong>LIVE MOTION</strong>
+        </div>
+        <div className="camera-state">
+          <span className={cameraReady ? 'state-dot on' : 'state-dot'} />
+          <b>{cameraReady ? 'CAM' : 'CAM'}</b>
+          <span className={modelReady ? 'state-dot on' : 'state-dot'} />
+          <b>{modelReady ? `${fps} FPS` : 'AI'}</b>
         </div>
       </div>
 
-      <div className="camera-stage">
+      <div className="camera-view">
         <video ref={videoRef} playsInline muted autoPlay />
         <canvas ref={canvasRef} />
+        <div className="camera-vignette" />
         <div className="scan-line" />
-        <div className="corner tl" /><div className="corner tr" />
-        <div className="corner bl" /><div className="corner br" />
 
         {!cameraReady && !cameraError && (
-          <div className="camera-loading">
-            <ScanLine size={28} />
-            <strong>Инициализация камеры</strong>
-            <span>Разреши доступ к камере в браузере.</span>
+          <div className="camera-message">
+            <ScanLine size={30} />
+            <strong>Подключаю камеру…</strong>
           </div>
         )}
 
         {cameraReady && !modelReady && !visionError && (
-          <div className="camera-loading">
-            <ScanLine size={28} />
-            <strong>Загрузка Motion AI</strong>
-            <span>Запускаю локальный MediaPipe Pose Landmarker…</span>
+          <div className="camera-message">
+            <ScanLine size={30} />
+            <strong>Запускаю Motion AI…</strong>
           </div>
         )}
 
         {cameraError && (
-          <div className="camera-loading error">
+          <div className="camera-message error">
             <strong>Camera Error</strong>
             <span>{cameraError}</span>
           </div>
         )}
 
         {visionError && (
-          <div className="camera-loading error">
+          <div className="camera-message error">
             <strong>Vision Engine Error</strong>
             <span>{visionError}</span>
-            <button className="ghost-btn" type="button" onClick={() => window.location.reload()}>
+            <button onClick={() => window.location.reload()}>
               <RefreshCw size={15} /> Повторить
             </button>
           </div>
         )}
 
         {phase === 'calibrating' && modelReady && (
-          <div className="calibration-overlay">
-            <div className="calibration-ring" />
-            <strong>Калибровка</strong>
-            <span>Отойди на 1.5–2.5 м · руки опусти · плечи, кисти, колени и стопы должны быть в кадре</span>
+          <div className="camera-calibration">
+            <span />
+            <strong>STAY STILL</strong>
           </div>
         )}
       </div>
 
       <div className="camera-foot">
-        <span>Pose landmarks · 33 points</span>
-        <span className={calibration.ready ? 'accent' : ''}>
-          {calibration.ready ? 'CALIBRATED' : 'NOT CALIBRATED'}
-        </span>
+        <span>{calibration.ready ? 'CALIBRATED' : 'UPPER-BODY TRACKING'}</span>
+        <b>{modelReady ? 'ON-DEVICE' : 'STARTING'}</b>
       </div>
     </section>
   )
