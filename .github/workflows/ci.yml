@@ -15,7 +15,12 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - run: npm run test
       - run: npm run build
+      - name: Verify local vision assets
+        run: |
+          test -s public/mediapipe/wasm/vision_wasm_internal.wasm
+          test -s public/models/pose_landmarker_lite.task
 
   backend:
     runs-on: ubuntu-latest
