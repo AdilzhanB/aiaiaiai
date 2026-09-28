@@ -20,8 +20,8 @@ The experience is intentionally more than a camera demo:
 
 | Gesture | Player movement | Game action |
 | --- | --- | --- |
-| **LEFT** | shift shoulders left from the calibrated center | dodge left |
-| **RIGHT** | shift shoulders right | dodge right |
+| **LEFT** | lean head + upper body left, or shift left | dodge left |
+| **RIGHT** | lean head + upper body right, or shift right | dodge right |
 | **DUCK** | lower head and shoulders | pass below a pulse |
 | **BOOST** | raise both wrists above the shoulder line | boost through a gate |
 | **SHIELD** | bring both wrists together near the chest | absorb an energy impact |
@@ -36,7 +36,7 @@ Examples:
 
 - “Подними правую кисть выше линии плеч.”
 - “Присядь ниже: опусти голову и плечи ещё примерно на 24% ширины плеч.”
-- “Смести плечи влево ещё примерно на 31% их ширины.”
+- “Наклони голову и верх корпуса влево ещё немного. Шагать не нужно.”
 - “Сведи кисти ближе друг к другу перед грудью.”
 
 During the run these messages are deliberately large and the optional voice coach reads them aloud, so the player can react without standing next to the screen.
@@ -51,7 +51,7 @@ The engine uses:
 - calibrated shoulder width as a scale-normalized unit;
 - wrist height relative to shoulders;
 - head + shoulder vertical displacement for DUCK;
-- lateral shoulder displacement for LEFT/RIGHT;
+- a calibrated blend of shoulder translation and head/upper-body lean for LEFT/RIGHT;
 - normalized wrist-to-wrist and wrist-to-chest distances for SHIELD;
 - landmark visibility as a confidence gate.
 

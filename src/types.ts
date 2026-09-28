@@ -31,6 +31,7 @@ export interface Calibration {
   shoulderWidth: number
   shoulderY: number
   headY: number
+  headOffsetX: number
   chestY: number
   ready: boolean
 }
@@ -46,6 +47,8 @@ export interface MotionMetrics {
   crouchDepth: number
   wristDistance: number
   wristChestDistance: number
+  shoulderShift: number
+  headLean: number
   lateralShift: number
   quality: number
 }

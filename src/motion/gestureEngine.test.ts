@@ -7,6 +7,7 @@ const calibration: Calibration = {
   shoulderWidth: 0.2,
   shoulderY: 0.34,
   headY: 0.18,
+  headOffsetX: 0,
   chestY: 0.512,
   ready: true
 }
@@ -35,9 +36,7 @@ function shiftX(points: Point[], amount: number) {
 
 function shiftUpperY(points: Point[], amount: number) {
   const copy = points.map((point) => ({ ...point }))
-  for (const id of [0, 11, 12, 13, 14, 15, 16]) {
-    copy[id].y += amount
-  }
+  for (const id of [0, 11, 12, 13, 14, 15, 16]) copy[id].y += amount
   return copy
 }
 
@@ -46,13 +45,35 @@ describe('upper-body gesture engine', () => {
     const p = basePose()
     p[15] = { x: 0.37, y: 0.12, visibility: 1 }
     p[16] = { x: 0.63, y: 0.12, visibility: 1 }
-
     expect(analyzePose(p, calibration).gesture).toBe('boost')
   })
 
-  it('recognizes lateral shifts', () => {
-    expect(analyzePose(shiftX(basePose(), -0.18), calibration).gesture).toBe('left')
-    expect(analyzePose(shiftX(basePose(), 0.18), calibration).gesture).toBe('right')
+  it('recognizes whole-body lateral translation', () => {
+    expect(analyzePose(shiftX(basePose(), -0.12), calibration).gesture).toBe('left')
+    expect(analyzePose(shiftX(basePose(), 0.12), calibration).gesture).toBe('right')
+  })
+
+  it('recognizes a natural left lean even when shoulder midpoint barely moves', () => {
+    const p = basePose()
+    p[0] = { x: 0.39, y: 0.2, visibility: 1 }
+    p[11] = { x: 0.405, y: 0.35, visibility: 1 }
+    p[12] = { x: 0.61, y: 0.33, visibility: 1 }
+    expect(analyzePose(p, calibration).gesture).toBe('left')
+  })
+
+  it('recognizes a natural right lean even when shoulder midpoint barely moves', () => {
+    const p = basePose()
+    p[0] = { x: 0.61, y: 0.2, visibility: 1 }
+    p[11] = { x: 0.39, y: 0.33, visibility: 1 }
+    p[12] = { x: 0.595, y: 0.35, visibility: 1 }
+    expect(analyzePose(p, calibration).gesture).toBe('right')
+  })
+
+  it('does not treat the calibrated natural head offset as a dodge', () => {
+    const p = basePose()
+    const c = { ...calibration, headOffsetX: -0.2 }
+    p[0] = { x: 0.46, y: 0.18, visibility: 1 }
+    expect(analyzePose(p, c).gesture).toBe('neutral')
   })
 
   it('recognizes duck using head and shoulder drop', () => {
@@ -63,11 +84,10 @@ describe('upper-body gesture engine', () => {
     const p = basePose()
     p[15] = { x: 0.47, y: 0.5, visibility: 1 }
     p[16] = { x: 0.53, y: 0.5, visibility: 1 }
-
     expect(analyzePose(p, calibration).gesture).toBe('shield')
   })
 
-  it('calibrates from upper-body frames only', () => {
+  it('calibrates neutral head offset from upper-body frames', () => {
     const frames: PoseFrame[] = Array.from({ length: 14 }, (_, index) => ({
       points: basePose(),
       timestamp: index * 33
@@ -78,6 +98,6 @@ describe('upper-body gesture engine', () => {
     expect(result.ready).toBe(true)
     expect(result.centerX).toBeCloseTo(0.5, 2)
     expect(result.shoulderWidth).toBeCloseTo(0.2, 2)
-    expect(result.headY).toBeCloseTo(0.18, 2)
+    expect(result.headOffsetX).toBeCloseTo(0, 2)
   })
 })

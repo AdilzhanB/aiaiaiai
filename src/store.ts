@@ -42,6 +42,7 @@ const emptyCalibration: Calibration = {
   shoulderWidth: 0.22,
   shoulderY: 0.34,
   headY: 0.2,
+  headOffsetX: 0,
   chestY: 0.53,
   ready: false
 }

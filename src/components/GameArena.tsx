@@ -19,7 +19,7 @@ import type { Hazard, HazardKind } from '../types'
 
 const GAME_SECONDS = 60
 const LEAD_MS = 2450
-const HIT_WINDOW = 680
+const HIT_WINDOW = 820
 const SPAWN_MS = 1900
 
 const actions: Record<
@@ -32,15 +32,15 @@ const actions: Record<
   }
 > = {
   left: {
-    label: 'SHIFT LEFT',
+    label: 'DODGE LEFT',
     short: 'LEFT',
-    instruction: 'Сместись влево',
+    instruction: 'Наклонись влево',
     icon: ArrowLeft
   },
   right: {
-    label: 'SHIFT RIGHT',
+    label: 'DODGE RIGHT',
     short: 'RIGHT',
-    instruction: 'Сместись вправо',
+    instruction: 'Наклонись вправо',
     icon: ArrowRight
   },
   duck: {
@@ -162,7 +162,7 @@ export default function GameArena() {
         if (
           Math.abs(delta) <= HIT_WINDOW &&
           match(hazard.kind, state.gesture) &&
-          state.gestureConfidence > 0.34
+          state.gestureConfidence > 0.26
         ) {
           resolved.current.add(hazard.id)
           resolveHazard(hazard.id, true)

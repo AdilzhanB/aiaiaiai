@@ -54,6 +54,7 @@ export function calibrationFromFrames(frames: PoseFrame[]): Calibration {
         shoulderWidth,
         shoulderY: shoulder.y,
         headY: nose.y,
+        headOffsetX: (nose.x - shoulder.x) / shoulderWidth,
         chestY: shoulder.y + shoulderWidth * 0.86
       }
     })
@@ -65,6 +66,7 @@ export function calibrationFromFrames(frames: PoseFrame[]): Calibration {
       shoulderWidth: 0.22,
       shoulderY: 0.34,
       headY: 0.2,
+      headOffsetX: 0,
       chestY: 0.53,
       ready: false
     }
@@ -78,6 +80,7 @@ export function calibrationFromFrames(frames: PoseFrame[]): Calibration {
     shoulderWidth: avg('shoulderWidth'),
     shoulderY: avg('shoulderY'),
     headY: avg('headY'),
+    headOffsetX: avg('headOffsetX'),
     chestY: avg('chestY'),
     ready: true
   }
@@ -103,6 +106,8 @@ export function analyzePose(points: Point[], c: Calibration): MotionDecision {
       crouchDepth: 0,
       wristDistance: 2,
       wristChestDistance: 2,
+      shoulderShift: 0,
+      headLean: 0,
       lateralShift: 0,
       quality
     }
@@ -137,8 +142,21 @@ export function analyzePose(points: Point[], c: Calibration): MotionDecision {
   const wristMid = mid(lw, rw)
   const wristDistance = dist(lw, rw) / shoulderWidth
   const wristChestDistance = dist(wristMid, chest) / shoulderWidth
-  const lateralShift =
+
+  const shoulderShift =
     (centerX - c.centerX) / Math.max(c.shoulderWidth, 0.08)
+
+  const currentHeadOffset =
+    (nose.x - shoulder.x) / shoulderWidth
+
+  const headLean = currentHeadOffset - c.headOffsetX
+
+  // Natural dodge: both whole-body translation and a visible upper-body/head lean count.
+  // Head lean gets more weight because users naturally dodge by leaning, not by sliding
+  // both shoulders horizontally while keeping the head centered.
+  const lateralShift =
+    shoulderShift * 0.42 +
+    headLean * 0.78
 
   const shieldScore =
     clamp((0.72 - wristDistance) / 0.42) *
@@ -149,8 +167,11 @@ export function analyzePose(points: Point[], c: Calibration): MotionDecision {
     clamp((boostHeight - 0.18) / 0.62)
 
   const duckScore = clamp((crouchDepth - 0.18) / 0.48)
-  const leftScore = clamp((-lateralShift - 0.28) / 0.56)
-  const rightScore = clamp((lateralShift - 0.28) / 0.56)
+
+  // Easier, more natural dodge thresholds. A modest lean should register,
+  // while calibration keeps neutral head tilt from becoming a false dodge.
+  const leftScore = clamp((-lateralShift - 0.10) / 0.30)
+  const rightScore = clamp((lateralShift - 0.10) / 0.30)
 
   const candidates = [
     {
@@ -171,12 +192,12 @@ export function analyzePose(points: Point[], c: Calibration): MotionDecision {
     {
       gesture: 'left' as const,
       score: leftScore,
-      text: 'Манёвр влево.'
+      text: 'Уклон влево зафиксирован.'
     },
     {
       gesture: 'right' as const,
       score: rightScore,
-      text: 'Манёвр вправо.'
+      text: 'Уклон вправо зафиксирован.'
     }
   ].sort((a, b) => b.score - a.score)
 
@@ -194,11 +215,13 @@ export function analyzePose(points: Point[], c: Calibration): MotionDecision {
     crouchDepth,
     wristDistance,
     wristChestDistance,
+    shoulderShift,
+    headLean,
     lateralShift,
     quality
   }
 
-  if (best.score < 0.42) {
+  if (best.score < 0.36) {
     return {
       gesture: 'neutral',
       confidence: Math.min(0.32, quality * 0.32),
@@ -247,13 +270,13 @@ export function coachForHazard(
   }
 
   if (expected === 'left') {
-    const missing = Math.max(0, 0.78 + m.lateralShift)
-    return `Смести плечи влево ещё примерно на ${Math.round(missing * 100)}% их ширины.`
+    const missing = Math.max(0, 0.25 + m.lateralShift)
+    return `Наклони голову и верх корпуса влево ещё примерно на ${Math.round(missing * 100)}% ширины плеч. Шагать не нужно.`
   }
 
   if (expected === 'right') {
-    const missing = Math.max(0, 0.78 - m.lateralShift)
-    return `Смести плечи вправо ещё примерно на ${Math.round(missing * 100)}% их ширины.`
+    const missing = Math.max(0, 0.25 - m.lateralShift)
+    return `Наклони голову и верх корпуса вправо ещё примерно на ${Math.round(missing * 100)}% ширины плеч. Шагать не нужно.`
   }
 
   if (expected === 'shield') {
@@ -271,6 +294,6 @@ export function coachForHazard(
     Math.max(calibration.shoulderWidth, 0.08)
 
   return Math.abs(dx) > 0.25
-    ? 'Верни плечи в центр и приготовься к следующему манёвру.'
+    ? 'Вернись в центр и приготовься к следующему манёвру.'
     : 'Держи нейтральную стойку.'
 }
