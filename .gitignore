@@ -6,3 +6,5 @@ __pycache__
 *.pyc
 backend/motion.db
 .venv
+public/mediapipe/wasm/
+public/models/pose_landmarker_lite.task
