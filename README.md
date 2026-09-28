@@ -1,6 +1,6 @@
 # RIFT//RUNNER
 
-**RIFT//RUNNER** is a browser motion arcade where the player's upper body becomes the controller.
+**RIFT//RUNNER** is a motion-controlled browser arcade where the player's upper body becomes the controller.
 
 The player pilots a core through a 60-second neon rift. Incoming hazards require a physical response: shift left, shift right, duck, raise both hands for BOOST, or bring the hands together for SHIELD. The game sees the movement through an ordinary webcam, translates pose landmarks into custom gesture rules, animates the pilot, scores the reaction, and gives immediate corrective coaching when the movement is inaccurate.
 
